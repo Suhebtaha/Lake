@@ -393,3 +393,175 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
+
+class EditorPage extends StatefulWidget {
+  final Store store;
+  final Dream? dream;
+  const EditorPage({super.key, required this.store, this.dream});
+
+  @override
+  State<EditorPage> createState() => _EditorPageState();
+}
+
+class _EditorPageState extends State<EditorPage> {
+  late final TextEditingController _title;
+  late final TextEditingController _body;
+  late final TextEditingController _tags;
+  late DateTime _date;
+  late int _mood;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.dream;
+    _title = TextEditingController(text: d?.title ?? '');
+    _body = TextEditingController(text: d?.body ?? '');
+    _tags = TextEditingController(text: d?.tags.join('، ') ?? '');
+    _date = d?.date ?? DateTime.now();
+    _mood = d?.mood ?? 2;
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _body.dispose();
+    _tags.dispose();
+    super.dispose();
+  }
+
+  List<String> _parseTags() => _tags.text
+      .split(RegExp(r'[,،]'))
+      .map((t) => t.trim())
+      .where((t) => t.isNotEmpty)
+      .toSet()
+      .toList();
+
+  void _save() {
+    final title = _title.text.trim();
+    final body = _body.text.trim();
+    if (title.isEmpty && body.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اكتب عنوانًا أو وصفًا للحلم أولًا')),
+      );
+      return;
+    }
+    widget.store.upsert(Dream(
+      id: widget.dream?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      title: title.isEmpty ? 'حلم بدون عنوان' : title,
+      body: body,
+      date: _date,
+      mood: _mood,
+      tags: _parseTags(),
+    ));
+    Navigator.pop(context);
+  }
+
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الحلم؟'),
+        content: const Text('لا يمكن التراجع عن الحذف.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      widget.store.remove(widget.dream!.id);
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final p = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (p != null) setState(() => _date = p);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.dream == null ? 'حلم جديد' : 'تعديل الحلم'),
+        actions: [
+          if (widget.dream != null)
+            IconButton(
+              tooltip: 'حذف',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _delete,
+            ),
+          IconButton(
+            tooltip: 'حفظ',
+            icon: const Icon(Icons.check),
+            onPressed: _save,
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _title,
+            decoration: const InputDecoration(
+              labelText: 'العنوان',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _body,
+            minLines: 6,
+            maxLines: 14,
+            decoration: const InputDecoration(
+              labelText: 'وصف الحلم',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('المزاج'),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (var i = 0; i < 5; i++)
+                ChoiceChip(
+                  label: Text(moods[i], style: const TextStyle(fontSize: 22)),
+                  selected: _mood == i,
+                  onSelected: (_) => setState(() => _mood = i),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _tags,
+            decoration: const InputDecoration(
+              labelText: 'الوسوم (افصل بينها بفاصلة)',
+              hintText: 'طيران، مدرسة، حلم واضح',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _pickDate,
+            icon: const Icon(Icons.calendar_today),
+            label: Text('التاريخ: ${fmtDate(_date)}'),
+          ),
+        ],
+      ),
+    );
+  }
+}
