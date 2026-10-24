@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - '**.zip'
 
 jobs:
   build:
@@ -20,14 +22,39 @@ jobs:
         with:
           channel: stable
 
-      - name: Create Flutter project files
+      - name: Keep the same signing key between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
+
+      - name: Create Flutter project
         run: flutter create --project-name dream_tracker --org com.example.dreamtracker .
 
-      - name: Use my app code
-        run: cp main.dart lib/main.dart
+      - name: Unpack app code and icon
+        run: |
+          for z in ./*.zip; do
+            if [ -e "$z" ]; then unzip -o "$z"; fi
+          done
+          test -f lib/models.dart
 
-      - name: Add dependency
-        run: flutter pub add shared_preferences
+      - name: App name
+        run: sed -i 's/android:label="[^"]*"/android:label="Dream Tracker"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Dependencies and icon
+        run: |
+          flutter pub add shared_preferences
+          flutter pub add dev:flutter_launcher_icons
+          cat >> pubspec.yaml <<'EOF'
+
+          flutter_launcher_icons:
+            android: true
+            ios: false
+            image_path: "assets/icon.png"
+            adaptive_icon_background: "assets/icon_bg.png"
+            adaptive_icon_foreground: "assets/icon_fg.png"
+          EOF
+          dart run flutter_launcher_icons
 
       - name: Build APK
         run: flutter build apk --release
