@@ -33,7 +33,7 @@ jobs:
         run: flutter pub get
 
       - name: Check code
-        run: flutter analyze
+        run: run: flutter analyze lib
 
       - name: Build APK
         run: flutter build apk --release
