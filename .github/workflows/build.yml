@@ -1,19 +1,20 @@
-name: Build APK
+
+name: Build Dreams Tracker APK
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - '**.zip'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/build.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -23,33 +24,21 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
-      - name: Keep the same signing key between builds
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: debug-keystore-v1
+      - name: Generate Android project
+        run: flutter create --platforms=android --project-name dreams_tracker --org com.suhebtaha.dreamstracker .
 
-      - name: Create Flutter project
-        run: flutter create --project-name dream_tracker --org com.example.dreamtracker .
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Unpack newest app zip
-        run: |
-          zip=$(git -c core.quotepath=off log --name-only --diff-filter=AM --format= -- '*.zip' | head -n 1)
-          echo "Using: $zip"
-          unzip -o "$zip"
-          test -f ci/build.sh
+      - name: Check code
+        run: flutter analyze
 
-      - name: Build
-        run: bash ci/build.sh
-
-      - name: Show report
-        if: always()
-        run: cat build_report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Build APK
+        run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dream-tracker-apk
+          name: dreams-tracker-current-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-          
